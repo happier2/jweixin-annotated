@@ -8,7 +8,6 @@
     initFunc(window, true)
   }
 })(this, function (win, notModule) {
-
   function invoke(methodName, data, config) { // invoke method by WeixinBridge.invoke
     if (win.WeixinJSBridge) {
       WeixinJSBridge.invoke(methodName, addVerfiyInfo(data), function (result) {
@@ -35,7 +34,6 @@
       }
     }
   }
-
   function addVerfiyInfo(config) { // every invoke must have these verify info
     config = config || {}
     config.appId = OPTIONS.appId
@@ -58,29 +56,7 @@
     }
   }
 
-  function normalizeAddress(address) { // for user address info, concerning compatibility.
-    address.postalCode = address.addressPostalCode
-    delete address.addressPostalCode
-
-    address.provinceName = address.proviceFirstStageName // provice => province? typo
-    delete address.proviceFirstStageName
-
-    address.cityName = address.addressCitySecondStageName
-    delete address.addressCitySecondStageName
-
-    address.countryName = address.addressCountiesThirdStageName // count => country, for i18n?
-    delete address.addressCountiesThirdStageName
-
-    address.detailInfo = address.addressDetailInfo
-    delete address.addressDetailInfo
-
-    return address
-  }
-
   function handleNativeResult(methodName, result, config) {
-    if (methodName === 'openEnterpriseChat') {
-      result.errCode = result.err_code
-    }
     delete result.err_code
     delete result.err_desc
     delete result.err_detail
@@ -201,22 +177,25 @@
   }
 
   function sendTrackInfo() {
-    if (!isPC && !isDebugger && !OPTIONS.Debug && clientVersion <= '6.0.2' && clientInfo.systemType >= 0) {
-      let tracker = new Image()
+    if (clientInfo.preVerifyState != 0) {
+      if (!isPC && !isDebugger && !OPTIONS.Debug && clientVersion <= '6.0.2' && clientInfo.systemType >= 0 && !sendingReport) {
+        sendingReport = true
 
-      clientInfo.appId = OPTIONS.appId
-      clientInfo.initTime = perfermance.initEndTime - perfermance.initStartTime
-      clientInfo.preVerifyTime = perfermance.preVerifyEndTime - perfermance.preVerifyStartTime
+        clientInfo.appId = OPTIONS.appId
+        clientInfo.initTime = perfermance.initEndTime - perfermance.initStartTime
+        clientInfo.preVerifyTime = perfermance.preVerifyEndTime - perfermance.preVerifyStartTime
 
-      wx.getNetworkType({
-        isInnerInvoke: true,
-        success: function (result) {
-          clientInfo.networkType = result.networkType
-          const url = 'https://open.weixin.qq.com/sdk/report?v=' + clientInfo.version + '&o=' + clientInfo.isPreVerifyOk + '&s=' + clientInfo.systemType + '&c=' + clientInfo.clientVersion + '&a=' + clientInfo.appId + '&n=' + clientInfo.networkType + '&i=' + clientInfo.initTime + '&p=' + clientInfo.preVerifyTime + '&u=' + clientInfo.url
+        wx.getNetworkType({
+         isInnerInvoke: true,
+         success: function (result) {
+           clientInfo.networkType = result.networkType
+           const url = 'https://open.weixin.qq.com/sdk/report?v=' + clientInfo.version + '&o=' + clientInfo.isPreVerifyOk + '&s=' + clientInfo.systemType + '&c=' + clientInfo.clientVersion + '&a=' + clientInfo.appId + '&n=' + clientInfo.networkType + '&i=' + clientInfo.initTime + '&p=' + clientInfo.preVerifyTime + '&u=' + clientInfo.url
+           let tracker = new Image()
 
-          tracker.src = url
-        }
-      })
+           tracker.src = url
+         }
+        })
+      }
     }
   }
 
@@ -261,12 +240,6 @@
       addCard: 'batchAddCard',
       openCard: 'batchViewCard',
       chooseWXPay: 'getBrandWCPayRequest',
-      openEnterpriseRedPacket: 'getRecevieBizHongBaoRequest',
-      startSearchBeacons: 'startMonitoringBeacons',
-      stopSearchBeacons: 'stopMonitoringBeacons',
-      onSearchBeacons: 'onBeaconsInRange',
-      consumeAndShareCard: 'consumedShareCard',
-      openAddress: 'editAddress'
     }
 
     const commandNameMap = (function () {
@@ -294,6 +267,9 @@
       return matched ? matched[1] : ''
     })()
 
+    let sendingReport = false
+    let errorHandled = false
+
     let perfermance = { // track code performance
       initStartTime: getTimestamp(),
       initEndTime: 0,
@@ -307,7 +283,7 @@
       initTime: 0,
       preVerifyTime: 0,
       networkType: '',
-      isPreVerifyOk: 1,
+      preVerifyState: 1,
       systemType: isiOS ? 1 : isAndroid ? 2 : -1,
       clientVersion: clientVersion,
       url: encodeURIComponent(location.href)
@@ -327,10 +303,6 @@
       // record init time first
       perfermance.initEndTime = getTimestamp()
     })
-
-    let isBlocked = false
-    let localImageLoadQueue = []
-
     const wx = {
       config: function (opts) {
         OPTIONS = opts
@@ -349,8 +321,8 @@
                   bridgeState.state = 1
                   bridgeState.data = data
                 }
-                callbackManager.success = function (data) {
-                  clientInfo.isPreVerifyOk = 0
+                callbackManager.success = function () {
+                  clientInfo.preVerifyState = 0
                 }
                 callbackManager.fail = function (data) {
                   callbackManager._fail ? callbackManager._fail(data) : (bridgeState.state = -1)
@@ -398,7 +370,8 @@
         }
       },
       error: function (callback) {
-        if (clientVersion <= '6.0.2') {
+        if (clientVersion <= '6.0.2' && !errorHandled) {
+          errorHandled = true
           bridgeState.state == -1 ? callback(bridgeState.data) : callbackManager._fail = callback
         }
       },
@@ -580,16 +553,6 @@
           config
         )
       },
-      downloadVoice: function (config) {
-        invoke(
-          'downloadVoice',
-          {
-            serverId: config.serverId,
-            isShowProgressTips: !!config.isShowProgressTips
-          },
-          config
-        )
-      },
       translateVoice: function (config) {
         invoke(
           'translateVoice',
@@ -623,7 +586,6 @@
           })()
         )
       },
-      getLocation: function (config) {}, // this should be code error
       previewImage: function (config) {
         invoke(
           methodNameMap.previewImage,
@@ -653,29 +615,6 @@
           },
           config
         )
-      },
-      getLocalImageData: function (config) {
-        if (isBlocked === false) {
-          isBlocked = !isBlocked
-
-          invoke(
-            'getLocalImageData',
-            { localId: config.localId },
-            (function () {
-              config._complete = function (result) {
-                isLoading = !isLoading
-                if (localImageLoadQueue.length > 0) {
-                  const imgConfig = localImageLoadQueue.shift()
-
-                  wx.getLocalImageData(imgConfig)
-                }
-              }
-              return config
-            })()
-          )
-        } else {
-          localImageLoadQueue.push(config)
-        }
       },
       getNetworkType: function (config) {
         let normalizeResult = function (result) {
@@ -714,12 +653,12 @@
       },
       openLocation: function (config) {
         invoke('openLocation', {
-            latitude: config.latitude,
-            longitude: config.longitude,
-            name: config.name || '',
-            address: config.address || '',
-            scale: config.scale || 28,
-            infoUrl: config.infoUrl || ''
+          latitude: config.latitude,
+          longitude: config.longitude,
+          name: config.name || '',
+          address: config.address || '',
+          scale: config.scale || 28,
+          infoUrl: config.infoUrl || ''
         },
                config)
       },
@@ -777,16 +716,6 @@
                        result.resultStr = res && res.scan_code && res.scan_code.scan_result
                      }
                    }
-                 }
-                 return config
-               })()
-        )
-      },
-      openAddress: function (config) {
-        invoke(methodNameMap.openAddress, {},
-               (function () {
-                 config._complete = function (result) {
-                   result = normalizeAddress(result)
                  }
                  return config
                })()
@@ -876,94 +805,10 @@
 
         invoke(methodNameMap.openCard, { card_list: cards }, config)
       },
-      consumeAndShareCard: function (config) { // a feature not listed on document
-        invoke(methodNameMap.consumeAndShareCard, {
-          consumeCardId: config.cardId,
-          consumeCode: config.code
-        }, config)
-      },
       chooseWXPay: function (config) {
         invoke(methodNameMap.chooseWXPay, addPaymentInfo(config), config)
       },
-      openEnterpriseRedPacket: function (config) { // a feature not listed on document
-        invoke(methodNameMap.openEnterpriseRedPacket, addPaymentInfo(config), config)
-      },
-      startSearchBeacons: function (config) {
-        invoke(methodNameMap.startSearchBeacons, { ticket: config.ticket }, config)
-      },
-      stopSearchBeacons: function (config) {
-        invoke(methodNameMap.stopSearchBeacons, {}, config)
-      },
-      onSearchBeacons: function (config) {
-        registerCallback(methodNameMap.onSearchBeacons, config)
-      },
-      openEnterpriseChat: function (config) { // a feature not listed on document
-        invoke('openEnterpriseChat', {
-          useridlist: config.userIds,
-          chatname: config.groupName
-        },
-               config)
-      }
     }
-
-    // now let's deal with local resource loading
-
-    let wxIdCount = 1 // for lcoal resource indexing
-    let LOCAL_RESOURCES = {} // a resource represented as : key<string>: id, value<boolean>: loaded or not
-
-    doc.addEventListener('error', function (e) {
-      if (!isAndroid) { // it's iOS only
-        const target = e.target
-        const tagName = target.tagName
-        const src = target.src
-
-        if (tagName === 'IMG' || tagName === 'VIDEO' || tagName === 'AUDIO' || tagName === 'SOURCE') {
-          const isLocalResource = src.indexOf('wxlocalresource://') != -1
-
-          if (isLocalResource) {
-            e.preventDefault()
-            e.stopPropagation()
-
-            let wxId = target['wx-id']
-
-            if (!wxId) {
-              wxId = wxIdCount++ // make every resource have a id
-              target['wx-id'] = wxId
-            }
-
-            if (LOCAL_RESOURCES[wxId]) { // if it already loaded
-              return
-            }
-
-            errors[wxId] = true // load it
-
-            wx.ready(function () {
-              wx.getLocalImageData({
-                localId: src,
-                success: function (result) {
-                  target.src = result.localData
-                }
-              })
-            })
-          }
-        }
-      }
-    }, true)
-
-    doc.addEventListener('load', function (e) {
-      if (!isAndroid) {
-        const target = e.target
-        const tagName = target.tagName
-
-        if (tagName === 'IMG' || tagName === 'VIDEO' || tagName === 'AUDIO' || tagName === 'SOURCE') {
-          const wxId = target['wx-id']
-
-          if (wxId) {
-            LOCAL_RESOURCES[wxId] = false // flag it to loaded
-          }
-        }
-      }
-    }, true)
 
     if (notModule) {
       win.wx = win.jWeixin = wx
@@ -972,3 +817,4 @@
     return wx
   }
 })
+
