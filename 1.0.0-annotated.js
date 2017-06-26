@@ -189,7 +189,7 @@
          isInnerInvoke: true,
          success: function (result) {
            clientInfo.networkType = result.networkType
-           const url = 'https://open.weixin.qq.com/sdk/report?v=' + clientInfo.version + '&o=' + clientInfo.isPreVerifyOk + '&s=' + clientInfo.systemType + '&c=' + clientInfo.clientVersion + '&a=' + clientInfo.appId + '&n=' + clientInfo.networkType + '&i=' + clientInfo.initTime + '&p=' + clientInfo.preVerifyTime + '&u=' + clientInfo.url
+           const url = 'https://open.weixin.qq.com/sdk/report?v=' + clientInfo.version + '&o=' + clientInfo.preVerifyState + '&s=' + clientInfo.systemType + '&c=' + clientInfo.clientVersion + '&a=' + clientInfo.appId + '&n=' + clientInfo.networkType + '&i=' + clientInfo.initTime + '&p=' + clientInfo.preVerifyTime + '&u=' + clientInfo.url
            let tracker = new Image()
 
            tracker.src = url

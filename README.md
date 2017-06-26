@@ -20,19 +20,35 @@ The latest version of WeChat's JS-SDK.
 
 ### What we know from it
 
-#### Undocument APIs:
+#### Added APIs:
 
- - consumeAndShareCard
- - openEnterpriseRedPacket
- - openEnterpriseChat
+ - consumeAndShareCard **undocumented**
+ - openEnterpriseRedPacket **undocumented**
+ - openEnterpriseChat **undocumented**
+ - startSearchBeacons
+ - stopSearchBeacons
+ - onSearchBeacons
+ - openAddress
 
-#### How local resources loaded (iOS only)
+#### Added feature: Local resources (iOS only)
 
 iOS version loads local resources by callling wx.getLocalImageData, and Android should have native implementation for it.
+
+#### fixed: wx.error would be called only once
+
+#### update: clientInfo.preVerifyState => clientInfo.isPreVerifyOk
+
+## Version 1.0.0
+
+### What we know from it
 
 #### OPTIONS.check for stats tracking
 
 WeChat would track your clientInfo when passing true to options.checktrue during wx.config.
+
+
+#### wx.error callback would be called only once
+
 
 # License
 
